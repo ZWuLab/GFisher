@@ -1,0 +1,334 @@
+---
+title: "Introduction to GFisher"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{Introduction to GFisher}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r, include = FALSE}
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment = "#>",
+  fig.width = 7,
+  fig.height = 5
+)
+```
+
+```{r setup}
+library(GFisher)
+```
+
+## Overview
+
+The **GFisher** package provides fast and efficient methods for calculating Fisher combination p-values in genetic association testing. This package implements the generalized Fisher's combination test (GFisher) and its omnibus version (oGFisher), which are particularly useful for combining p-values from multiple hypothesis tests while accounting for the correlation structure among test statistics.
+
+### Key Features
+
+- **Flexible weighting**: Supports arbitrary non-negative weights for combining p-values
+- **Generalized degrees of freedom**: Each p-value can be transformed with different degrees of freedom
+- **Accounts for dependence**: Handles correlation among input test statistics through correlation matrices
+- **Multiple methods**: Hybrid (HYB), Moment Ratio (MR), and Generalized Brown (GB) methods
+- **Omnibus testing**: Combines multiple GFisher tests to adapt to unknown signal patterns
+- **Optimized implementations**: Both R and C++ versions with substantial speedups
+
+## Basic GFisher Test
+
+The GFisher test generalizes Fisher's combination method by allowing flexible degrees of freedom and weights. The test statistic is:
+
+$$S = \sum_{i=1}^n w_i F^{-1}_{d_i}(1-P_i)$$
+
+where $F^{-1}_{d_i}$ is the inverse CDF of the chi-square distribution with $d_i$ degrees of freedom.
+
+### Important Note on Weight Normalization
+
+**All functions in this package automatically normalize weights to sum to 1** (i.e., $w \leftarrow w/\sum(w)$). This means:
+
+- Providing `w = c(1, 2, 3)` is equivalent to `w = c(1/6, 2/6, 3/6)`
+- This normalization improves numerical stability
+- It is statistically equivalent to other normalizations like $\sum w_i = n$ in terms of p-value calculation
+- The package focuses on hypothesis testing where relative weights matter, not absolute scale
+
+This convention is consistent across all functions: `stat.GFisher()`, `p.GFisher()`, and all `*_ind` functions.
+
+### Example 1: Standard Fisher's Method
+
+The classical Fisher's combination test uses $d_i = 2$ and equal weights:
+
+```{r example1}
+# Simulate some p-values
+set.seed(123)
+n <- 10
+pvals <- runif(n)  # Random p-values under null hypothesis
+pvals[1:3] <- c(0.001, 0.005, 0.01)  # Add some / potential signal
+
+# Calculate GFisher statistic (df=2 is standard Fisher's method)
+stat <- stat.GFisher(pvals, df = 2, w = 1)
+cat("GFisher statistic:", stat, "\n")
+
+# For independent p-values, use fast calculation
+p_value <- p.GFisher_ind_w1(stat, df = rep(2, n))
+cat("P-value (under independency):", p_value, "\n")
+```
+
+### Example 2: Varying Degrees of Freedom
+
+GFisher allows different degrees of freedom for each p-value transformation.
+(Examples 2 and 3 use `p.GFisher_ind()`, whose exact method needs the optional
+`coga` package; they are skipped automatically where `coga` is unavailable.)
+
+```{r example2, eval = requireNamespace("coga", quietly = TRUE)}
+# Use different df values
+df_values <- rep(c(1, 2, 3, 4), length.out = n)
+
+# Calculate statistic with varying df
+stat2 <- stat.GFisher(pvals, df = df_values, w = 1)
+cat("GFisher statistic (varying df):", stat2, "\n")
+
+# P-value for independent case
+p_value2 <- p.GFisher_ind(stat2, df = df_values, w = rep(1, n))
+cat("P-value (independent, varying df):", p_value2, "\n")
+```
+
+### Example 3: Weighted Combination
+
+Different weights can emphasize certain p-values:
+
+```{r example3, eval = requireNamespace("coga", quietly = TRUE)}
+# Assign higher weights to first few p-values
+weights <- c(rep(3, 3), rep(1, n - 3))
+
+# Calculate weighted statistic
+stat3 <- stat.GFisher(pvals, df = 2, w = weights)
+cat("Weighted GFisher statistic:", stat3, "\n")
+
+# P-value with weights
+p_value3 <- p.GFisher_ind(stat3, df = rep(2, n), w = weights)
+cat("P-value (weighted):", p_value3, "\n")
+```
+
+## Accounting for Dependence
+
+In genetic association studies, test statistics are often correlated due to linkage disequilibrium (LD). GFisher accounts for this through correlation matrices.
+
+### Example 4: Correlated Test Statistics
+
+```{r example4}
+# Create correlation matrix (e.g., from LD structure)
+M <- matrix(0.3, n, n) + diag(0.7, n, n)
+
+# Generate correlated z-scores
+set.seed(456)
+M_chol <- chol(M)
+z_scores <- rnorm(n) %*% M_chol
+pvals_cor <- 2 * pnorm(-abs(z_scores))  # Two-sided p-values
+
+# Calculate statistic
+stat_cor <- stat.GFisher(pvals_cor, df = 2, w = 1)
+
+# Calculate p-value accounting for dependence (Hybrid method)
+p_hyb <- p.GFisher(stat_cor, df = 2, w = 1, M = M, method = "HYB")
+cat("P-value (HYB, dependent):", p_hyb, "\n")
+
+# Compare with independence assumption (would be incorrect!)
+p_ind <- p.GFisher_ind_w1(stat_cor, df = rep(2, n))
+cat("P-value (independent assumption - WRONG!):", p_ind, "\n")
+cat("Ratio (dependent/independent):", p_hyb / p_ind, "\n")
+```
+
+The p-value accounting for dependence is typically larger (more conservative) than incorrectly assuming independence.
+
+## Comparison of Methods
+
+GFisher supports three methods for p-value calculation:
+
+- **HYB (Hybrid)**: Fast quadratic approximation using first four moments (two-sided p-values only)
+- **MR (Moment Ratio)**: Simulation-based with moment matching (more accurate for extreme tails)
+- **GB (Generalized Brown)**: Brown's method with calculated variance (simplest approximation)
+
+### Example 5: Method Comparison
+
+```{r example5}
+# Test statistic
+stat_test <- stat.GFisher(pvals_cor, df = 2, w = 1)
+
+# Compare methods
+p_hyb <- p.GFisher(stat_test, df = 2, w = 1, M = M, method = "HYB")
+p_mr <- p.GFisher(stat_test, df = 2, w = 1, M = M, method = "MR", nsim = 1e4)
+p_gb <- p.GFisher(stat_test, df = 2, w = 1, M = M, method = "GB")
+
+cat("Method comparison:\n")
+cat("  HYB:", p_hyb, "\n")
+cat("  MR: ", p_mr, "\n")
+cat("  GB: ", p_gb, "\n")
+```
+
+**Recommendation**: Use HYB for speed and accuracy with two-sided p-values. Use MR for extreme tail probabilities or one-sided p-values.
+
+## Omnibus GFisher Test (oGFisher)
+
+The omnibus test combines multiple GFisher statistics with different configurations (degrees of freedom and weights) to adapt to unknown signal patterns. This is particularly powerful when the optimal test configuration is unknown.
+
+### Example 6: oGFisher with Multiple Configurations
+
+```{r example6}
+# Define multiple test configurations
+# Each row represents a different GFisher test
+nGF <- 5  # Number of GFisher tests
+DF <- matrix(c(
+  rep(1, n),  # Test 1: df=1
+  rep(2, n),  # Test 2: df=2 (Fisher's method)
+  rep(3, n),  # Test 3: df=3
+  rep(4, n),  # Test 4: df=4
+  c(1, 1, 2, 2, 3, 3, 4, 4, 5, 5)  # Test 5: varying df
+), nrow = nGF, byrow = TRUE)
+
+W <- matrix(rep(1, nGF * n), nrow = nGF)  # Equal weights
+
+# Calculate oGFisher statistics
+result <- stat.oGFisher(pvals_cor, DF, W, M, method = "HYB")
+
+cat("Individual GFisher statistics:\n")
+print(result$STAT)
+
+cat("\nIndividual p-values:\n")
+print(result$PVAL)
+
+cat("\nMinimum p-value:", result$minp, "\n")
+cat("CCT statistic:", result$cct, "\n")
+```
+
+### Example 7: oGFisher P-Value
+
+```{r example7}
+# Calculate omnibus p-value using Cauchy combination
+result_cct <- pval.oGFisher(pvals_cor, DF, W, M, method = "HYB", combine = "cct")
+cat("oGFisher p-value (CCT):", result_cct$pval, "\n")
+
+# Alternative: minimum p-value with MVN distribution
+result_mvn <- pval.oGFisher(pvals_cor, DF, W, M, method = "HYB", combine = "mvn")
+cat("oGFisher p-value (MVN):", result_mvn$pval, "\n")
+```
+
+## Genetic Association Example
+
+Let's simulate a more realistic scenario: testing association of rare variants in a gene.
+
+### Example 8: Gene-Based Rare Variant Test
+
+```{r example8}
+# Simulate a gene with 15 rare variants
+n_variants <- 15
+set.seed(789)
+
+# Simulate LD structure (higher correlation for nearby variants)
+# Create block-diagonal structure
+M_ld <- matrix(0.1, n_variants, n_variants)
+diag(M_ld) <- 1
+
+# Add blocks of higher correlation (nearby variants)
+for (i in 1:3) {
+  idx <- ((i-1)*5 + 1):(i*5)
+  M_ld[idx, idx] <- 0.6
+  diag(M_ld[idx, idx]) <- 1
+}
+
+# Simulate z-scores with this LD structure
+z_variants <- rnorm(n_variants) %*% chol(M_ld)
+
+# Add signal to some variants (causal variants)
+z_variants[c(2, 3, 8)] <- z_variants[c(2, 3, 8)] + 4.5  # Add signal
+
+# Convert to two-sided p-values
+pvals_variants <- 2 * pnorm(-abs(z_variants))
+
+cat("P-values for variants:\n")
+print(round(pvals_variants, 5))
+
+# Test 1: Standard Fisher's method accounting for LD
+stat_fisher <- stat.GFisher(pvals_variants, df = 2, w = 1)
+p_fisher <- p.GFisher(stat_fisher, df = 2, w = 1, M = M_ld, method = "HYB")
+cat("\nFisher's method p-value:", p_fisher, "\n")
+
+# Test 2: Weighted by inverse MAF (common in rare variant analysis)
+# Simulate MAF (minor allele frequencies)
+maf <- runif(n_variants, 0.001, 0.05)
+weights_maf <- 1 / sqrt(maf * (1 - maf))  # Madsen-Browning weights
+weights_maf <- weights_maf / sum(weights_maf) * n_variants  # Normalize
+
+stat_weighted <- stat.GFisher(pvals_variants, df = 2, w = weights_maf)
+p_weighted <- p.GFisher(stat_weighted, df = 2, w = weights_maf, M = M_ld, method = "HYB")
+cat("Weighted test p-value:", p_weighted, "\n")
+
+# Test 3: Omnibus test to adapt to signal
+DF_gene <- rbind(
+  rep(1, n_variants),
+  rep(2, n_variants),
+  rep(3, n_variants)
+)
+W_gene <- rbind(
+  rep(1, n_variants),
+  weights_maf,
+  sqrt(weights_maf)
+)
+
+result_omnibus <- pval.oGFisher(pvals_variants, DF_gene, W_gene, M_ld,
+                                 method = "HYB", combine = "cct")
+cat("Omnibus test p-value:", result_omnibus$pval, "\n")
+
+cat("\nConclusion: oGFisher adapts to the signal pattern and provides",
+    "\na powerful omnibus test for genetic association.\n")
+```
+
+## Performance: R vs C++
+
+The package includes optimized C++ implementations for computational bottlenecks. Here's a simple benchmark:
+
+```{r benchmark, eval=FALSE}
+# This is not evaluated in the vignette to save time
+# Run this code manually to see speedups
+
+library(microbenchmark)
+
+n <- 20
+M <- matrix(0.3, n, n) + diag(0.7, n, n)
+pvals <- runif(n)
+q <- stat.GFisher(pvals, df = 2, w = 1)
+
+# Compare R vs C++ for MR method
+microbenchmark(
+  R_version = p.GFisher(q, df = 2, w = 1, M = M, method = "MR",
+                        nsim = 1e5, use.cpp = FALSE),
+  Cpp_version = p.GFisher(q, df = 2, w = 1, M = M, method = "MR",
+                          nsim = 1e5, use.cpp = TRUE),
+  times = 10
+)
+
+```
+
+See the `benchmarks/` directory in the package source for comprehensive benchmark scripts.
+
+## Summary
+
+The GFisher package provides:
+
+1. **Flexible combination tests**: Generalized Fisher's method with varying df and weights
+2. **Dependence handling**: Accounts for correlation structure among test statistics
+3. **Omnibus testing**: Adapts to unknown signal patterns
+4. **Multiple methods**: HYB, MR, and GB for different scenarios
+5. **High performance**: C++ implementations for speed-critical operations
+6. **Special cases**: Optimized functions for independent p-values
+
+For genetic association testing, GFisher is particularly useful for:
+
+- Gene-based rare variant tests
+- Combining results from multiple variants in LD
+- Adaptive tests when optimal weights are unknown
+- Meta-analysis with correlated test statistics
+
+## References
+
+Zhang, H. and Wu, Z. (2022). The generalized Fisher's combination and accurate p-value calculation under dependence. *Biometrics*, 79(2), 1159-1172. doi:10.1111/biom.13634
+
+---
