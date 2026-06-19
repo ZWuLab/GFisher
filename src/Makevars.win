@@ -1,0 +1,12 @@
+## -*- mode: makefile -*-
+##
+## Makevars.win for GFisher (Windows-specific build settings)
+##
+## RcppArmadillo's matrix ops call BLAS/LAPACK; the Rtools toolchain does not
+## auto-link them, so they must be linked explicitly here or the package fails
+## to link ("undefined reference to `dgemm_'/`dsyev_'/..."). Mirrors src/Makevars.
+##
+## File Log (reverse chronological order):
+## - 2026-06-19: Created by Claude Code (Opus 4.8 / 1M ctx), prompted by ZWu,
+##   to fix the ZWuLab/GFisher Windows R-CMD-check link failure.
+PKG_LIBS = $(LAPACK_LIBS) $(BLAS_LIBS) $(FLIBS)

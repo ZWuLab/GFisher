@@ -1,0 +1,17 @@
+## -*- mode: makefile -*-
+##
+## Makevars for GFisher
+##
+## The C++ sources use RcppArmadillo, whose matrix operations call BLAS/LAPACK
+## routines (e.g. dgemm_/dgemv_/ddot_ for products, dsyev_/dpotrf_/dpbtrf_ for
+## eig_sym/chol). Link them explicitly so the shared library resolves those
+## symbols on every platform. R links a BLAS implicitly on Linux/macOS, but the
+## Windows (Rtools) toolchain does NOT -- without this line the Windows build
+## fails at link time with "undefined reference to `dgemm_'" etc.
+##
+## File Log (reverse chronological order):
+## - 2026-06-19: Created by Claude Code (Opus 4.8 / 1M ctx), prompted by ZWu,
+##   after the ZWuLab/GFisher GitHub Actions Windows job failed to link BLAS/
+##   LAPACK (undefined references in eigenvalue.o/integration.o/simulation.o).
+##   Canonical RcppArmadillo linkage; no source/behaviour change.
+PKG_LIBS = $(LAPACK_LIBS) $(BLAS_LIBS) $(FLIBS)

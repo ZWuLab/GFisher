@@ -1,0 +1,20 @@
+citHeader("To cite GFisher in publications use:")
+
+bibentry(
+  bibtype  = "Article",
+  title    = "The generalized Fisher's combination and accurate p-value calculation under dependence",
+  author   = c(person("Hong", "Zhang"),
+               person("Zheyang", "Wu")),
+  journal  = "Biometrics",
+  year     = "2022",
+  volume   = "79",
+  number   = "2",
+  pages    = "1159--1172",
+  doi      = "10.1111/biom.13634",
+  textVersion = paste(
+    "Zhang, H. and Wu, Z. (2022).",
+    "The generalized Fisher's combination and accurate p-value calculation under dependence.",
+    "Biometrics, 79(2), 1159-1172.",
+    "doi:10.1111/biom.13634"
+  )
+)
