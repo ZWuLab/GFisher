@@ -179,12 +179,12 @@ Zhang, H. and Wu, Z. (2022). The generalized Fisher's combination and accurate p
 
 ## Contact
 
-Maintainer: Hong Zhang (consistencyzhang@gmail.com). Please file bugs and questions at https://github.com/ZWuLab/GFisher/issues.
+Maintainer: Zheyang Wu (zheyangwu@wpi.edu). Please file bugs and questions at https://github.com/ZWuLab/GFisher/issues.
 
 ## Authors
 
-- **Hong Zhang** (consistencyzhang@gmail.com) — Author, Maintainer
-- **Zheyang Wu** (zheyangwu@wpi.edu) — Author
+- **Hong Zhang** (consistencyzhang@gmail.com) — Author
+- **Zheyang Wu** (zheyangwu@wpi.edu) — Author, Maintainer
 
 ---
 

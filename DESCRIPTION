@@ -1,11 +1,11 @@
 Package: GFisher
 Type: Package
 Title: Generalized Fisher's Combination Tests Under Dependence
-Version: 0.3.0
-Date: 2026-06-13
+Version: 0.3.1
+Date: 2026-09-02
 Authors@R: c(
-    person("Hong", "Zhang", email = "consistencyzhang@gmail.com", role = c("aut", "cre")),
-    person("Zheyang", "Wu", email = "zheyangwu@wpi.edu", role = "aut")
+    person("Hong", "Zhang", email = "consistencyzhang@gmail.com", role = "aut"),
+    person("Zheyang", "Wu", email = "zheyangwu@wpi.edu", role = c("aut", "cre"))
     )
 Description: This R package provides accurate and computationally efficient methods for computing p-values for a general family of Fisher-type statistics (GFisher), including Fisher's combination, Good's statistic, and Lancaster's statistic. It supports flexible weighting schemes and an omnibus procedure that adapts the weights and degrees of freedom to the data. The package includes p-value calculation methods based on moment-ratio matching and joint distribution approximations. It offers both pure R implementations and optimized C++ code via RcppArmadillo for improved performance on large-scale data. For fast calculations under independence, the optional 'coga' package is required for functions with the '_ind' suffix.
 URL: https://zwulab.github.io/GFisher/, https://github.com/ZWuLab/GFisher, https://doi.org/10.1111/biom.13634
